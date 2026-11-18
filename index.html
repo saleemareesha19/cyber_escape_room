@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server Room Escape – Information Security Puzzle Game</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#050b0a; --panel:#0b1715; --panel2:#0f211e; --line:rgba(61,255,154,.22);
+  --g:#3dff9a; --c:#39d0ff; --r:#ff4d6d; --y:#ffd166; --text:#d8f5e8; --dim:#6f9a8a;
+  --mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,"Courier New",monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);line-height:1.55;overflow-x:hidden}
+#rain{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:.35;pointer-events:none}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0,rgba(0,0,0,.18) 1px,transparent 1px,transparent 3px)}
+.wrap{position:relative;z-index:2;max-width:820px;margin:0 auto;padding:18px 16px 60px}
+h1,h2{margin:0;font-weight:700}
+.hide{display:none!important}
+
+/* HUD */
+.hud{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:18px;
+  box-shadow:0 0 24px rgba(61,255,154,.08)}
+.logo{color:var(--g);font-size:.95rem;letter-spacing:.08em}
+.timer{font-size:1.9rem;color:var(--g);text-shadow:0 0 12px rgba(61,255,154,.6);min-width:92px;text-align:center}
+.timer.low{color:var(--r);text-shadow:0 0 14px rgba(255,77,109,.8);animation:pulse .6s infinite alternate}
+@keyframes pulse{to{opacity:.55}}
+.locks{display:flex;gap:8px}
+.lock{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;font-size:1rem;color:var(--dim);background:var(--panel2)}
+.lock.active{border-color:var(--c);color:var(--c);box-shadow:0 0 12px rgba(57,208,255,.5)}
+.lock.done{border-color:var(--g);color:var(--g);background:rgba(61,255,154,.12)}
+.mute{background:none;border:1px solid var(--line);color:var(--dim);border-radius:9px;padding:6px 10px;cursor:pointer;font:inherit}
+.mute:hover{color:var(--text)}
+
+/* cards */
+.card{background:linear-gradient(160deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.5);animation:in .4s ease}
+@keyframes in{from{opacity:0;transform:translateY(12px)}}
+.tag{display:inline-block;font-size:.78rem;color:var(--c);border:1px solid rgba(57,208,255,.4);border-radius:999px;padding:2px 12px;margin-bottom:10px;letter-spacing:.1em}
+.card h2{font-size:1.5rem;color:var(--g);margin-bottom:8px}
+.story{color:var(--dim);margin:0 0 18px}
+.term{background:#030807;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+.dim{color:var(--dim);font-size:.82rem}
+.big{font-size:1.35rem;letter-spacing:.14em;word-break:break-word;margin-top:4px}
+.big.g{color:var(--g)}
+.lbl{display:block;margin:14px 0 4px;color:var(--dim)}
+.lbl b{color:var(--c);font-size:1.1rem}
+input[type=range]{width:100%;accent-color:var(--g);height:34px}
+input[type=text],input[type=password]{flex:1;min-width:0;background:#030807;border:1px solid var(--line);color:var(--g);border-radius:10px;padding:12px 14px;font:inherit;font-size:1rem;letter-spacing:.06em}
+input:focus{outline:2px solid var(--c);outline-offset:1px}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.btn{background:var(--g);color:#032014;border:0;border-radius:10px;padding:12px 22px;font:700 1rem var(--mono);cursor:pointer;box-shadow:0 0 18px rgba(61,255,154,.35);transition:transform .12s}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+.btn.blue{background:var(--c);box-shadow:0 0 18px rgba(57,208,255,.35)}
+.ghost{background:transparent;color:var(--y);border:1px dashed rgba(255,209,102,.5);border-radius:10px;padding:9px 14px;font:inherit;cursor:pointer}
+.ghost:disabled{opacity:.35;cursor:not-allowed}
+.msg{min-height:1.5em;margin-top:10px;color:var(--r)}
+.bar{display:flex;gap:12px;align-items:flex-start;margin-top:20px;flex-wrap:wrap}
+#hintbox{flex:1;min-width:200px;color:var(--y);font-size:.92rem}
+#hintbox div{margin-bottom:4px}
+.locked{pointer-events:none;opacity:.55}
+.shake{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.learn{margin-top:20px;border:1px solid rgba(61,255,154,.45);background:rgba(61,255,154,.07);border-radius:12px;padding:14px 16px}
+.learn b{color:var(--g)}
+.learn p{margin:6px 0 0}
+
+/* memo puzzle */
+.mail{background:#f4f1e8;color:#1b1b1b;border-radius:10px;padding:16px 18px;font-family:Georgia,serif;font-size:1.02rem}
+.mail .hd{font:.8rem var(--mono);color:#555;border-bottom:1px solid #ccc;padding-bottom:8px;margin-bottom:10px}
+.mail .ln{padding:3px 0}
+.mail.show .fl{background:#ffe27a;color:#000;font-weight:700;padding:0 3px;border-radius:3px}
+
+/* url puzzle */
+.urls{display:grid;gap:10px;margin-top:10px}
+.url{text-align:left;font:inherit;font-size:.95rem;color:var(--text);background:#030807;border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;word-break:break-all;display:flex;gap:10px;align-items:center}
+.url::before{content:"☐";color:var(--dim);font-size:1.2rem}
+.url.sel{border-color:var(--r);background:rgba(255,77,109,.12)}
+.url.sel::before{content:"⚠";color:var(--r)}
+.url.res-ok{border-color:var(--g)}
+.url.res-bad{border-color:var(--r)}
+
+/* password puzzle */
+.meter{height:12px;border-radius:9px;background:#030807;border:1px solid var(--line);overflow:hidden;margin-top:12px}
+.meter i{display:block;height:100%;width:0;background:var(--r);transition:width .3s,background .3s}
+.checks{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:4px}
+.checks li{color:var(--dim)}
+.checks li::before{content:"✗ ";color:var(--r)}
+.checks li.ok{color:var(--g)}
+.checks li.ok::before{content:"✓ ";color:var(--g)}
+.crack{margin-top:10px;color:var(--c)}
+
+/* end screens */
+.center{text-align:center}
+.door{position:relative;width:min(260px,70vw);height:300px;margin:10px auto 24px;border:3px solid var(--g);border-radius:10px 10px 0 0;overflow:hidden;background:radial-gradient(circle at 50% 40%,#c8ffe4,#3dff9a 40%,#052a1a);box-shadow:0 0 50px rgba(61,255,154,.5)}
+.door i{position:absolute;top:0;bottom:0;width:50%;background:linear-gradient(90deg,#10211e,#1a332e);border:1px solid var(--line);transition:transform 1.6s cubic-bezier(.6,0,.2,1) .5s}
+.door i:first-child{left:0}.door i:last-child{right:0}
+.door.open i:first-child{transform:translateX(-102%)}
+.door.open i:last-child{transform:translateX(102%)}
+.door.shut{border-color:var(--r);box-shadow:0 0 50px rgba(255,77,109,.5);background:#1a0509}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+.stat{background:#030807;border:1px solid var(--line);border-radius:12px;padding:12px 6px}
+.stat b{display:block;font-size:1.5rem;color:var(--g)}
+.stat span{font-size:.78rem;color:var(--dim)}
+.cert{border:2px solid var(--y);border-radius:14px;padding:16px;margin:18px 0;background:rgba(255,209,102,.06)}
+.cert .rank{color:var(--y);font-size:1.5rem;margin:4px 0}
+.recap{text-align:left;margin:0;padding-left:18px;color:var(--dim)}
+.recap li{margin:4px 0}
+.hero h1{font-size:clamp(1.9rem,6vw,2.8rem);color:var(--g);text-shadow:0 0 18px rgba(61,255,154,.5);line-height:1.15;margin:8px 0 14px}
+.hero p{color:var(--dim);max-width:56ch;margin:0 auto 12px}
+.rules{text-align:left;max-width:520px;margin:18px auto;background:#030807;border:1px solid var(--line);border-radius:12px;padding:14px 18px;color:var(--text);font-size:.92rem}
+.rules div{margin:3px 0}
+.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:20;background:var(--r);color:#fff;border-radius:10px;padding:8px 18px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .25s}
+.toast.on{opacity:1}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+<div class="toast" id="toast" role="status"></div>
+
+<div class="wrap">
+
+  <!-- INTRO -->
+  <section id="intro" class="card center hero">
+    <div class="tag">INFORMATION SECURITY · PUZZLE GAME</div>
+    <h1>🔐 SERVER ROOM ESCAPE</h1>
+    <p>You are an ethical hacker. The company's server room has gone into <b style="color:var(--r)">LOCKDOWN</b>. The door has 4 security locks. Solve every puzzle before the timer runs out to escape.</p>
+    <div class="rules">
+      <div>🔓 Lock 1 · Caesar Cipher</div>
+      <div>🕵️ Lock 2 · Hidden Message</div>
+      <div>🎣 Lock 3 · Spot the Fake Links</div>
+      <div>🔑 Lock 4 · Build a Strong Password</div>
+      <div style="margin-top:8px;color:var(--y)">⏱ 10:00 total · wrong answer −10s · hint −30s</div>
+    </div>
+    <div class="row" style="justify-content:center">
+      <input type="text" id="name" placeholder="Your name (for the certificate)" maxlength="24" autocomplete="off" style="max-width:300px;flex:none;width:100%">
+    </div>
+    <div class="row" style="justify-content:center"><button class="btn" id="start">▶ ENTER THE SERVER ROOM</button></div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hide">
+    <div class="hud">
+      <div class="logo">▌SERVER ROOM</div>
+      <div class="locks" id="locks"></div>
+      <div class="timer" id="timer">10:00</div>
+      <button class="mute" id="mute" aria-label="Toggle sound">🔊</button>
+    </div>
+    <div id="stage"></div>
+  </section>
+
+  <!-- WIN -->
+  <section id="win" class="card center hide">
+    <div class="door" id="door"><i></i><i></i></div>
+    <h2 style="font-size:1.8rem">🎉 DOOR UNLOCKED – YOU ESCAPED!</h2>
+    <div class="cert">
+      <div class="dim">SECURITY CERTIFICATE</div>
+      <div class="rank" id="rank"></div>
+      <div id="who"></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="sT">0</b><span>time left</span></div>
+      <div class="stat"><b id="sH">0</b><span>hints used</span></div>
+      <div class="stat"><b id="sS">0</b><span>score</span></div>
+    </div>
+    <div class="learn" style="text-align:left"><b>What you practiced</b>
+      <ul class="recap">
+        <li>Caesar cipher: a simple substitution cipher, easy to break.</li>
+        <li>Hidden data: secrets can hide inside normal looking text (steganography).</li>
+        <li>Phishing links: always read the real domain, not the brand name.</li>
+        <li>Passwords: length plus randomness beats clever tricks.</li>
+      </ul>
+    </div>
+    <div class="row" style="justify-content:center"><button class="btn" id="again1">↻ Play again</button></div>
+  </section>
+
+  <!-- LOSE -->
+  <section id="lose" class="card center hide">
+    <div class="door shut"><i></i><i></i></div>
+    <h2 style="color:var(--r);font-size:1.8rem">🚨 LOCKDOWN COMPLETE</h2>
+    <p class="story">Time ran out and the security system sealed the room. Don't worry, every hacker fails a few times. Try again!</p>
+    <div class="row" style="justify-content:center"><button class="btn" id="again2">↻ Try again</button></div>
+  </section>
+
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+
+/* ---------- matrix rain background ---------- */
+(function(){
+  const cv=$('#rain'),x=cv.getContext('2d');
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  let w,h,cols,drops;
+  function size(){w=cv.width=innerWidth;h=cv.height=innerHeight;cols=Math.floor(w/18);drops=Array.from({length:cols},()=>Math.random()*h/18);}
+  size();addEventListener('resize',size);
+  const ch='01ABCDEF$#%<>/{}ABXYZ';
+  setInterval(()=>{
+    x.fillStyle='rgba(5,11,10,.12)';x.fillRect(0,0,w,h);
+    x.fillStyle='#3dff9a';x.font='15px monospace';
+    for(let i=0;i<cols;i++){
+      x.fillText(ch[Math.floor(Math.random()*ch.length)],i*18,drops[i]*18);
+      if(drops[i]*18>h&&Math.random()>.975)drops[i]=0;
+      drops[i]+=.5;
+    }
+  },70);
+})();
+
+/* ---------- sound (generated in browser) ---------- */
+let AC,muted=false;
+function ac(){if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}
+function beep(f,d,type,v,at){
+  if(muted)return;
+  try{const c=ac(),t=c.currentTime+(at||0),o=c.createOscillator(),g=c.createGain();
+    o.type=type||'square';o.frequency.value=f;
+    g.gain.setValueAtTime(v||.06,t);g.gain.exponentialRampToValueAtTime(.0001,t+(d||.12));
+    o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+(d||.12)+.02);}catch(e){}
+}
+const sfx={
+  ok:()=>[523,659,784,1047].forEach((f,i)=>beep(f,.16,'triangle',.09,i*.09)),
+  bad:()=>{beep(160,.28,'sawtooth',.08);beep(120,.28,'sawtooth',.08,.12);},
+  hint:()=>beep(700,.1,'sine',.08),
+  tick:()=>beep(900,.05,'square',.04),
+  win:()=>[523,659,784,1047,784,1047,1319].forEach((f,i)=>beep(f,.22,'triangle',.1,i*.13)),
+  lose:()=>[400,330,260,180].forEach((f,i)=>beep(f,.3,'sawtooth',.08,i*.2)),
+  key:()=>beep(1200,.025,'square',.025)
+};
+$('#mute').onclick=()=>{muted=!muted;$('#mute').textContent=muted?'🔇':'🔊';};
+
+/* ---------- helpers ---------- */
+let S=null,tid=null,toastT;
+function show(id){['intro','game','win','lose'].forEach(s=>$('#'+s).classList.toggle('hide',s!==id));scrollTo(0,0);}
+function fmt(t){return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');}
+function renderTime(){const el=$('#timer');el.textContent=fmt(S.t);el.classList.toggle('low',S.t<=60);}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),1400);}
+function cost(sec,why){
+  if(S.over)return;
+  S.t=Math.max(0,S.t-sec);S.pen+=sec;renderTime();toast('−'+sec+'s · '+why);
+  if(S.t<=0)endGame(false);
+}
+function shake(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');}
+function norm(s){return s.toUpperCase().replace(/[^A-Z]/g,'');}
+function renderLocks(){
+  $('#locks').innerHTML=puzzles.map((p,i)=>{
+    const c=S.solved[i]?'done':(i===S.i?'active':'');
+    return '<div class="lock '+c+'">'+(S.solved[i]?'🔓':'🔒')+'</div>';
+  }).join('');
+}
+
+/* ---------- puzzles ---------- */
+const caesar=(txt,k)=>txt.replace(/[A-Z]/g,c=>String.fromCharCode(((c.charCodeAt(0)-65+k)%26+26)%26+65));
+
+const puzzles=[
+
+/* 1 · Caesar */
+{
+  title:'Lock 1 · The Caesar Cipher',
+  story:'A note was found taped to the door. The admin encrypted it with a Caesar cipher: every letter was moved forward by the same number of places. Use the slider to shift the letters back and read the message.',
+  hints:['The shift is a small number. Try values below 5.','The shift is 3.'],
+  learn:'<b>Caesar cipher</b> was used by Julius Caesar around 2000 years ago. It has only 25 possible keys, so a computer breaks it instantly (brute force). Modern encryption like AES has astronomically more keys.',
+  build(el,done){
+    const plain='NEVER SHARE YOUR OTP';
+    el.innerHTML=
+     '<div class="term"><div class="dim">// intercepted note</div><div class="big" id="ct"></div></div>'+
+     '<label class="lbl">Shift letters back by: <b id="sv">0</b></label>'+
+     '<input type="range" id="sh" min="0" max="25" value="0" aria-label="Caesar shift">'+
+     '<div class="term"><div class="dim">// decoded with your shift</div><div class="big g" id="dec"></div></div>'+
+     '<div class="row"><input type="text" id="ans" placeholder="Type the decoded message" autocomplete="off"><button class="btn" id="go">Unlock</button></div>'+
+     '<div class="msg" id="m"></div>';
+    const ct=caesar(plain,3);
+    $('#ct').textContent=ct;$('#dec').textContent=ct;
+    $('#sh').oninput=e=>{const k=+e.target.value;$('#sv').textContent=k;$('#dec').textContent=caesar(ct,-k);sfx.key();};
+    const check=()=>{
+      if(norm($('#ans').value)===norm(plain)){done();}
+      else{$('#m').textContent='ACCESS DENIED. That is not the right message.';sfx.bad();shake($('#ans'));cost(10,'wrong code');}
+    };
+    $('#go').onclick=check;
+    $('#ans').onkeydown=e=>{if(e.key==='Enter')check();};
+  }
+},
+
+/* 2 · Hidden message */
+{
+  title:'Lock 2 · The Hidden Message',
+  story:'An employee left this harmless looking security memo on the desk. But the admin is sneaky: the real access word is hidden inside it. Find it.',
+  hints:['Read only the first letter of every line.','Hint 2 highlights the first letters for you.'],
+  learn:'<b>Steganography</b> hides a secret inside normal looking data, like text, images or audio. Encryption hides the <i>meaning</i> of a message, steganography hides the <i>existence</i> of it.',
+  onHint(n){if(n===2)$('#mail').classList.add('show');},
+  build(el,done){
+    const lines=[
+      ['E','very employee must lock their screen when leaving the desk.'],
+      ['N','ever write passwords on sticky notes.'],
+      ['C','heck the sender before clicking any link.'],
+      ['R','eport strange emails to the IT team.'],
+      ['Y','our USB drives must be scanned before use.'],
+      ['P','atch and update all devices every week.'],
+      ['T','urn on two-factor authentication everywhere.']
+    ];
+    el.innerHTML=
+     '<div class="mail" id="mail"><div class="hd">From: it-admin@company.local &nbsp;|&nbsp; Subject: Weekly Security Reminders</div>'+
+     lines.map(l=>'<div class="ln"><span class="fl">'+l[0]+'</span>'+l[1]+'</div>').join('')+'</div>'+
+     '<div class="row"><input type="text" id="ans" placeholder="Hidden access word" autocomplete="off"><button class="btn" id="go">Unlock</button></div>'+
+     '<div class="msg" id="m"></div>';
+    const check=()=>{
+      if(norm($('#ans').value)==='ENCRYPT'){done();}
+      else{$('#m').textContent='ACCESS DENIED. Wrong word.';sfx.bad();shake($('#ans'));cost(10,'wrong word');}
+    };
+    $('#go').onclick=check;
+    $('#ans').onkeydown=e=>{if(e.key==='Enter')check();};
+  }
+},
+
+/* 3 · Fake links */
+{
+  title:'Lock 3 · Spot the Fake Links',
+  story:'The door system sent 6 links to your email, claiming to be from "SafeBank". Some are phishing traps. Tap every FAKE link, then press Verify.',
+  hints:['Read the domain from the right side, just before the first single "/". The real site must END with safebank.com.pk.','Three are fake: one hides the brand inside another domain, one has a spelling mistake, and one is a shortened link without HTTPS.'],
+  learn:'<b>Phishing links</b> copy a real brand name. Always find the <i>real domain</i> (the part just before the first single slash). <code>safebank.com.pk.secure-update.net</code> actually belongs to <b>secure-update.net</b>. Also watch for typos, missing HTTPS and shortened links.',
+  build(el,done){
+    const items=[
+      ['https://www.safebank.com.pk/login',false],
+      ['https://safebank.com.pk.secure-update.net/verify',true],
+      ['https://mail.safebank.com.pk/inbox',false],
+      ['https://www.safebnak.com.pk/account',true],
+      ['http://bit.ly/3xFr33-prize',true],
+      ['https://www.safebank.com.pk/help',false]
+    ];
+    el.innerHTML='<div class="urls" id="urls"></div>'+
+      '<div class="row"><button class="btn" id="go">Verify</button></div><div class="msg" id="m"></div>';
+    const box=$('#urls');
+    items.forEach(([u,fake])=>{
+      const b=document.createElement('button');b.className='url';b.type='button';b.textContent=u;
+      b.onclick=()=>{b.classList.toggle('sel');sfx.key();};
+      b._fake=fake;box.appendChild(b);
+    });
+    $('#go').onclick=()=>{
+      const bs=[...box.children];
+      const wrong=bs.filter(b=>b.classList.contains('sel')!==b._fake).length;
+      if(wrong===0){
+        bs.forEach(b=>b.classList.add(b._fake?'res-bad':'res-ok'));
+        done();
+      }else{
+        $('#m').textContent='Not quite. '+wrong+' link(s) classified wrongly.';
+        sfx.bad();shake(box);cost(15,'wrong answer');
+      }
+    };
+  }
+},
+
+/* 4 · Password */
+{
+  title:'Lock 4 · The Master Password',
+  story:'Final lock! The system wants a new admin password and it will reject weak ones. Meet ALL requirements to open the door. Nothing you type here is stored or sent anywhere.',
+  hints:['Try a passphrase: 4 random words joined with symbols and numbers.','Something like Tea-Moon-Train-47! passes every check. Make your own version.'],
+  learn:'<b>Password strength</b> comes from length and unpredictability, not from clever substitutions like p@ssw0rd. A long random passphrase is both strong and easier to remember. Use a password manager and two-factor authentication too.',
+  build(el,done){
+    el.innerHTML=
+      '<div class="row" style="margin-top:0"><input type="password" id="pw" placeholder="Type a strong password" autocomplete="off" spellcheck="false"><button class="ghost" id="eye" type="button">Show</button></div>'+
+      '<div class="meter"><i id="mt"></i></div>'+
+      '<div class="crack" id="cr">Estimated time to crack: -</div>'+
+      '<ul class="checks" id="ck"></ul>'+
+      '<div class="row"><button class="btn" id="go" disabled>Unlock the door</button></div>';
+    const bad=/password|admin|qwerty|1234|pakistan|safebank|letmein|iloveyou|welcome/i;
+    const rules=[
+      ['At least 12 characters',p=>p.length>=12],
+      ['Has a lowercase letter',p=>/[a-z]/.test(p)],
+      ['Has an UPPERCASE letter',p=>/[A-Z]/.test(p)],
+      ['Has a number',p=>/\d/.test(p)],
+      ['Has a symbol (! @ # - _ ...)',p=>/[^A-Za-z0-9]/.test(p)],
+      ['No common words (password, admin, 1234...)',p=>p.length>0&&!bad.test(p)],
+      ['No 3 identical characters in a row',p=>p.length>0&&!/(.)\1\1/.test(p)]
+    ];
+    $('#ck').innerHTML=rules.map(r=>'<li>'+r[0]+'</li>').join('');
+    const timeStr=s=>{
+      if(s<1)return 'instantly';
+      const u=[['years',31536000],['days',86400],['hours',3600],['minutes',60],['seconds',1]];
+      if(s>=31536000*1e9)return 'billions of years';
+      for(const [n,v] of u){if(s>=v){const x=s/v;return (x>=1e6?x.toExponential(1):Math.round(x).toLocaleString())+' '+n;}}
+      return 'instantly';
+    };
+    const upd=()=>{
+      const p=$('#pw').value;
+      let pool=0;if(/[a-z]/.test(p))pool+=26;if(/[A-Z]/.test(p))pool+=26;if(/\d/.test(p))pool+=10;if(/[^A-Za-z0-9]/.test(p))pool+=32;
+      const ent=p?p.length*Math.log2(pool||1):0;
+      const results=rules.map(r=>r[1](p));
+      [...$('#ck').children].forEach((li,i)=>li.classList.toggle('ok',results[i]));
+      const passed=results.filter(Boolean).length;
+      const m=$('#mt');m.style.width=(passed/rules.length*100)+'%';
+      m.style.background=passed<4?'var(--r)':passed<rules.length?'var(--y)':'var(--g)';
+      const secs=p?Math.pow(2,ent)/2/1e10:0;
+      $('#cr').textContent='Estimated time to crack (10 billion guesses/sec): '+(p?timeStr(secs):'-');
+      $('#go').disabled=passed<rules.length;
+    };
+    $('#pw').oninput=()=>{sfx.key();upd();};
+    $('#eye').onclick=()=>{const i=$('#pw');const show=i.type==='password';i.type=show?'text':'password';$('#eye').textContent=show?'Hide':'Show';};
+    $('#go').onclick=()=>{ if(!$('#go').disabled) done(); };
+  }
+}
+];
+
+/* ---------- game flow ---------- */
+function loadPuzzle(){
+  const p=puzzles[S.i];S.hn=0;S.cur=false;
+  $('#stage').innerHTML=
+    '<div class="card"><div class="tag">LOCK '+(S.i+1)+' OF '+puzzles.length+'</div>'+
+    '<h2>'+p.title+'</h2><p class="story">'+p.story+'</p>'+
+    '<div id="pz"></div>'+
+    '<div class="bar"><button class="ghost" id="hint">💡 Hint (−30s)</button><div id="hintbox"></div></div>'+
+    '<div id="after"></div></div>';
+  p.build($('#pz'),solve);
+  $('#hint').onclick=()=>{
+    if(S.cur||S.hn>=p.hints.length||S.over)return;
+    S.hn++;S.hints++;sfx.hint();
+    const d=document.createElement('div');d.textContent='💡 '+p.hints[S.hn-1];$('#hintbox').appendChild(d);
+    if(p.onHint)p.onHint(S.hn);
+    if(S.hn>=p.hints.length)$('#hint').disabled=true;
+    cost(30,'hint used');
+  };
+  renderLocks();
+}
+function solve(){
+  if(S.cur||S.over)return;
+  S.cur=true;S.solved[S.i]=true;sfx.ok();renderLocks();
+  const p=puzzles[S.i],last=S.i===puzzles.length-1;
+  $('#pz').classList.add('locked');$('#hint').disabled=true;
+  $('#after').innerHTML='<div class="learn">'+p.learn+'</div>'+
+    '<div class="row"><button class="btn blue" id="next">'+(last?'🚪 Open the door':'Next lock →')+'</button></div>';
+  $('#next').onclick=()=>{
+    if(last){endGame(true);}
+    else{S.i++;loadPuzzle();scrollTo(0,0);}
+  };
+}
+function startGame(){
+  ac();
+  S={i:0,t:600,hints:0,pen:0,solved:[false,false,false,false],over:false,name:($('#name').value.trim()||'Agent').slice(0,24)};
+  show('game');renderTime();loadPuzzle();
+  clearInterval(tid);
+  tid=setInterval(()=>{
+    if(S.over)return;
+    S.t--;renderTime();
+    if(S.t<=10&&S.t>0)sfx.tick();
+    if(S.t<=0)endGame(false);
+  },1000);
+}
+function endGame(win){
+  if(S.over)return;S.over=true;clearInterval(tid);
+  if(!win){sfx.lose();show('lose');return;}
+  sfx.win();show('win');
+  const score=Math.max(0,S.t*10-S.hints*50);
+  $('#sT').textContent=fmt(S.t);$('#sH').textContent=S.hints;$('#sS').textContent=score;
+  const rank=S.t>=300&&S.hints<=1?'🏆 SECURITY MASTER':S.t>=150?'🛡️ SECURITY PRO':'🔰 CYBER ROOKIE';
+  $('#rank').textContent=rank;
+  $('#who').textContent='Awarded to '+S.name+' for escaping the Server Room';
+  const d=$('#door');d.classList.remove('open');void d.offsetWidth;setTimeout(()=>d.classList.add('open'),50);
+}
+$('#start').onclick=startGame;
+$('#again1').onclick=()=>{show('intro');};
+$('#again2').onclick=()=>{show('intro');};
+$('#name').onkeydown=e=>{if(e.key==='Enter')startGame();};
+</script>
+</body>
+</html>
